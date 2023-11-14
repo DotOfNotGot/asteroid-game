@@ -5,9 +5,10 @@ use sdl2::video::WindowContext;
 use sdl2::pixels::Color;
 use sdl2::rect::{Rect, Point};
 
-use specs::{World, WorldExt, Join, DispatcherBuilder};
+use specs::{World, WorldExt, Join, DispatcherBuilder, System};
 
 use std::time::Duration;
+use std::time::Instant;
 use std::path::Path;
 use std::collections::HashMap;
 
@@ -119,6 +120,9 @@ fn main() -> Result<(), String> {
                                                     .build();
 
     game::load_world(&mut gs.ecs);
+    let mut frame_count: u32 = 0;
+    let mut start_time = Instant::now();
+    let mut fps = 61.0;
 
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -158,9 +162,22 @@ fn main() -> Result<(), String> {
         dispatcher.dispatch(&gs.ecs);
         gs.ecs.maintain();
         render(&mut canvas, &mut texture_manager, &texture_creator, &font, &gs.ecs)?;
+        
+        frame_count += 1;
+        let elapsed_time = start_time.elapsed().as_secs_f64();
+
+
+        if elapsed_time >= 1.0{
+            fps = frame_count as f64 / elapsed_time;
+            frame_count = 0;
+            println!("fps: {0}", fps);
+            start_time = Instant::now();
+        }
+
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32/60))
     }
 
     Ok(())
 
 }
+

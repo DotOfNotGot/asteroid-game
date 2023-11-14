@@ -33,7 +33,7 @@ pub fn load_world(ecs: &mut World){
     create_asteroid(ecs, components::Position{x: 400.0, y: 235.0, rot: 45.0}, 64);
 
     ecs.create_entity()
-        .with(crate::components::GameData{score: 0, level: 9998})
+        .with(crate::components::GameData{score: 0, level: 99998})
         .build();
 
 }

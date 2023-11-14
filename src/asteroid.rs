@@ -69,8 +69,8 @@ impl<'a> System<'a> for AsteroidCollider {
                 let hyp: f64 = ((diff_x*diff_x) + (diff_y*diff_y)).sqrt();
 
                 if hyp < (asteroid_rend.o_w + player_rend.o_w) as f64 / 2.0 {
-                    //println!("COLLISION PLAYER ASTEROID WOWOWOWO");
-                    //entities.delete(entity).ok();
+                    // println!("COLLISION PLAYER ASTEROID WOWOWOWO");
+                    // entities.delete(entity).ok();
                 }
 
             }
