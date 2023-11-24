@@ -6,6 +6,7 @@ use rand::Rng;
 
 use crate::asteroid;
 use crate::components;
+use crate::components::GameData;
 use crate::utils;
 
 const ROTATION_SPEED: f64 = 2.5;
@@ -33,7 +34,7 @@ pub fn load_world(ecs: &mut World){
     create_asteroid(ecs, components::Position{x: 400.0, y: 235.0, rot: 45.0}, 64);
 
     ecs.create_entity()
-        .with(crate::components::GameData{score: 0, level: 99998})
+        .with(crate::components::GameData{score: 0, level: 1, god_mode: false})
         .build();
 
 }
@@ -61,17 +62,26 @@ pub fn update(ecs: &mut World, key_manager: &mut HashMap<String, bool>){
         ecs.delete_all();
         load_world(ecs);
     }
-
+    
     let mut must_create_asteroid = false;
     let mut number_asteroids: u32 = 0;
 
     {
+        let mut gamedatas = ecs.write_storage::<components::GameData>();
+
+        if crate::utils::is_key_pressed(&key_manager, "J"){
+            for gamedata in (&mut gamedatas).join() {
+                gamedata.level += 9998;
+                number_asteroids = (gamedata.level / 3) + 1;
+                gamedata.god_mode = true;
+            }
+        }
+
         let asteroids = ecs.read_storage::<crate::components::Asteroid>();
         if asteroids.join().count() < 1 {
             must_create_asteroid = true;
 
-            let mut gamedatas = ecs.write_storage::<components::GameData>();
-            for mut gamedata in (&mut gamedatas).join() {
+            for gamedata in (&mut gamedatas).join() {
                 gamedata.level += 1;
                 number_asteroids = (gamedata.level / 3) + 1;
             }

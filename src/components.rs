@@ -57,5 +57,6 @@ pub struct PendingAsteroid {
 #[derive(Component)]
 pub struct GameData {
     pub score: u32,
-    pub level: u32
+    pub level: u32,
+    pub god_mode: bool
 }

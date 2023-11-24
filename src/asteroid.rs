@@ -19,7 +19,7 @@ impl<'a> System<'a> for AsteroidMover{
             pos.y -= asteroid.speed * radians.cos();
 
             let half_width = (rend.o_w / 2) as u32;
-            let half_height = (rend.o_h / 2) as u32;;
+            let half_height = (rend.o_h / 2) as u32;
 
             if pos.x > (crate::GAME_WIDTH - half_width).into()
                 || pos.x < half_width.into() {
@@ -54,11 +54,19 @@ impl<'a> System<'a> for AsteroidCollider {
         WriteStorage<'a, components::Renderable>,
         WriteStorage<'a, components::Player>,
         WriteStorage<'a, components::Asteroid>,
+        WriteStorage<'a, components::GameData>,
         Entities<'a>
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let(positions, rends, players, asteroids, entities) = data;
+        
+        let(positions, rends, players, asteroids, gamedatas, entities) = data;
+
+        for gamedata in (&gamedatas).join() {
+            if gamedata.god_mode == true {
+                return;
+            }
+        }
 
         for (player_pos, player_rend, _, entity) in (&positions, &rends, &players, &entities).join() {
             for(asteroid_pos, asteroid_rend, _) in (&positions, &rends, &asteroids).join(){
@@ -69,8 +77,7 @@ impl<'a> System<'a> for AsteroidCollider {
                 let hyp: f64 = ((diff_x*diff_x) + (diff_y*diff_y)).sqrt();
 
                 if hyp < (asteroid_rend.o_w + player_rend.o_w) as f64 / 2.0 {
-                    // println!("COLLISION PLAYER ASTEROID WOWOWOWO");
-                    // entities.delete(entity).ok();
+                    entities.delete(entity).ok();
                 }
 
             }

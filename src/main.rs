@@ -1,16 +1,16 @@
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::render::{WindowCanvas, TextureCreator};
+use sdl2::render::{WindowCanvas, TextureCreator, Texture};
 use sdl2::video::WindowContext;
 use sdl2::pixels::Color;
 use sdl2::rect::{Rect, Point};
 
 use specs::{World, WorldExt, Join, DispatcherBuilder, System};
 
-use std::time::Duration;
 use std::time::Instant;
 use std::path::Path;
 use std::collections::HashMap;
+use std::vec::Vec;
 
 pub mod texture_manager;
 pub mod utils;
@@ -22,7 +22,13 @@ pub mod missile;
 const GAME_WIDTH: u32 = 1280;
 const GAME_HEIGHT: u32 = 640;
 
-fn render(canvas: &mut WindowCanvas, texture_manager: &mut texture_manager::TextureManager<WindowContext>, texture_creator: &TextureCreator<WindowContext>, font: &sdl2::ttf::Font, ecs: &World) -> Result<(), String> {
+pub struct UIElement<'a>{
+    texture : Texture<'a>,
+    position : Rect
+}
+
+
+fn render(canvas: &mut WindowCanvas, texture_manager: &mut texture_manager::TextureManager<WindowContext>, ecs: &World, current_score : u32, ui_elements : &Vec<UIElement>) -> Result<(), String> {
 
     let color = Color::RGBA(0, 10, 100, 255);
 
@@ -51,20 +57,8 @@ fn render(canvas: &mut WindowCanvas, texture_manager: &mut texture_manager::Text
         )?;
     }
 
-    let gamedatas = ecs.read_storage::<components::GameData>();
-    for gamedata in (gamedatas).join() {
-        let score: String = "Score: ".to_string() + &gamedata.score.to_string();
-        let surface = font
-                .render(&score)
-                .blended(Color::RGBA(15, 180, 75, 255))
-                .map_err(|e| e.to_string())?;
-        
-        let texture = texture_creator
-                .create_texture_from_surface(&surface)
-                .map_err(|e| e.to_string())?;
-        let target = Rect::new(10 as i32, 0 as i32, 100 as u32, 50 as u32);
-
-        canvas.copy(&texture, None, Some(target))?;
+    for ui_element in ui_elements  {
+        canvas.copy(&ui_element.texture, None, Some(ui_element.position))?;
     }
 
     canvas.present();
@@ -74,12 +68,10 @@ fn render(canvas: &mut WindowCanvas, texture_manager: &mut texture_manager::Text
 struct State { ecs: World }
 
 fn main() -> Result<(), String> {
-    println!("Game go vroom");
-    
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
 
-    let window = video_subsystem.window("Dumbass", GAME_WIDTH as u32, GAME_HEIGHT as u32)
+    let window = video_subsystem.window("Asteroid game", GAME_WIDTH as u32, GAME_HEIGHT as u32)
         .position_centered()
         .build()
         .expect("video subsystem fucked up");
@@ -122,7 +114,11 @@ fn main() -> Result<(), String> {
     game::load_world(&mut gs.ecs);
     let mut frame_count: u32 = 0;
     let mut start_time = Instant::now();
-    let mut fps = 61.0;
+    let mut fixed_step_time = Instant::now();
+    let mut fps: f64 = 0.0;
+
+    let mut current_score : u32 = 9999;
+    let mut ui_elements : Vec<UIElement> = Vec::new();
 
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -138,6 +134,12 @@ fn main() -> Result<(), String> {
                 },
                 Event::KeyUp { keycode: Some(Keycode::Space), .. } => {
                     utils::key_up(&mut key_manager, " ".to_string());
+                },
+                Event::KeyDown { keycode: Some(Keycode::J), .. } => {
+                    utils::key_down(&mut key_manager, "J".to_string());
+                },
+                Event::KeyUp { keycode: Some(Keycode::J), .. } => {
+                    utils::key_up(&mut key_manager, "J".to_string());
                 },
                 Event::KeyDown { keycode, .. } =>{
                     match keycode {
@@ -158,23 +160,98 @@ fn main() -> Result<(), String> {
                 _ => {}
             }
         }
-        game::update(&mut gs.ecs, &mut key_manager);
-        dispatcher.dispatch(&gs.ecs);
-        gs.ecs.maintain();
-        render(&mut canvas, &mut texture_manager, &texture_creator, &font, &gs.ecs)?;
-        
         frame_count += 1;
         let elapsed_time = start_time.elapsed().as_secs_f64();
+        let fixed_step_elapsed_time = fixed_step_time.elapsed().as_secs_f64();
+        
+        // Used to seperate the game logic into a fixed timestep so that it's not affected by the current render frame rate.
+        if fixed_step_elapsed_time >= 1.0/60.0 {
+            game::update(&mut gs.ecs, &mut key_manager);
+            dispatcher.dispatch(&gs.ecs);
+            gs.ecs.maintain();
+            fixed_step_time = Instant::now();
+        }
 
-
+        // Fps counter only used 
         if elapsed_time >= 1.0{
             fps = frame_count as f64 / elapsed_time;
             frame_count = 0;
-            println!("fps: {0}", fps);
             start_time = Instant::now();
         }
+        
+        {
+        let gamedatas = gs.ecs.read_storage::<components::GameData>();
 
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32/60))
+        for gamedata in (gamedatas).join() {
+            let new_score = gamedata.score;
+    
+            // If score hasn't changed then we don't need to create a new UI Element.
+            if new_score == current_score && frame_count != 0{
+                continue;
+            }
+
+            current_score = new_score;
+
+            // Clears the UI Element so that we can replace it with one reflecting the new score.
+
+            ui_elements.clear();
+
+            let color = Color::RGBA(15, 180, 75, 255);
+
+            let score: String = "Score: ".to_string() + &current_score.to_string();
+            let surface = font
+                    .render(&score)
+                    .blended(color)
+                    .map_err(|e| e.to_string())?;
+            
+            let texture : Texture = texture_creator
+                    .create_texture_from_surface(&surface)
+                    .map_err(|e| e.to_string())?;
+            let target = Rect::new(10 as i32, 0 as i32, 100 as u32, 50 as u32);
+    
+            let score_ui : UIElement = UIElement{texture : texture, position: target};
+            
+            ui_elements.push(score_ui);
+            
+            let asteroid_count = "Asteroid count: ".to_string() + &gs.ecs.read_storage::<components::Asteroid>().count().to_string();
+
+            let asteroid_surface = font
+                    .render(&asteroid_count)
+                    .blended(color)
+                    .map_err(|e| e.to_string())?;
+            
+            let asteroid_count_texture : Texture = texture_creator
+                    .create_texture_from_surface(asteroid_surface)
+                    .map_err(|e| e.to_string())?;
+            let asteroid_count_target = Rect::new(10 as i32, 40 as i32, 300 as u32, 50 as u32);
+
+            let asteroid_count_ui : UIElement = UIElement { texture: asteroid_count_texture, position: asteroid_count_target };
+
+            ui_elements.push(asteroid_count_ui);
+
+            let fps_display = "FPS: ".to_string() + &(fps as u32).to_string();
+
+            let fps_surface = font
+                    .render(&fps_display)
+                    .blended(color)
+                    .map_err(|e| e.to_string())?;
+            
+            let fps_texture : Texture = texture_creator
+                    .create_texture_from_surface(fps_surface)
+                    .map_err(|e| e.to_string())?;
+            let fps_target = Rect::new(10 as i32, 80 as i32, 150 as u32, 50 as u32);
+
+            let asteroid_count_ui : UIElement = UIElement { texture: fps_texture, position: fps_target };
+
+            ui_elements.push(asteroid_count_ui);
+        }
+
+
+
+        }
+
+        // Renders all the textures to the window.
+        render(&mut canvas, &mut texture_manager, &gs.ecs, current_score, &ui_elements)?;
     }
 
     Ok(())
