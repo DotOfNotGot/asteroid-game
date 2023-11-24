@@ -12,6 +12,6 @@ I decided to separate the physics loop from the actual frame rate later in the p
 
 ![Alt text](image-1.png)
 
-# Hits 60 fps with over 20_000 asteroids on screen.
+# Hits 60 fps with over 20000 asteroids on screen.
 
 ![Alt text](image.png)
